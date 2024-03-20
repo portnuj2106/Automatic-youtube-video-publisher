@@ -13,14 +13,12 @@ from moviepy.editor import VideoFileClip
 
 
 def get_schedule_date_time(days=0):
-    # Set the publish time to 2 PM Eastern Time (US) on the next day
     eastern_tz = pytz.timezone('America/Los_Angeles')
     publish_time = datetime.now(eastern_tz)
     if days > 0:
         publish_time = datetime.now(eastern_tz) + timedelta(days)
     publish_time = publish_time.replace(hour=14, minute=0, second=0, microsecond=0)
 
-    # Set the publish time in the UTC timezone
     publish_time_utc = publish_time.astimezone(pytz.utc).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
     return publish_time_utc
 
@@ -56,7 +54,7 @@ def is_youtube_short(video_file):
     return aspect_ratio < 1.0  # Assuming vertical aspect ratio for YouTube Shorts
 
 
-def upload_video(file_path, title, description='', tags=[], privacy_status='public', day=0):
+async def upload_video(file_path, title, description='', tags=[], privacy_status='public', day=0):
     print("Uploading...")
     youtube = get_youtube_service()
     try:
