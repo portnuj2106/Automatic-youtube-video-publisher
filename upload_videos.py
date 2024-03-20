@@ -59,9 +59,15 @@ async def upload_videos(directory, uploaded_videos_directory):
             await upload_videos(full_path, uploaded_videos_directory)  # Recursively call the function for subdirectories
 
 
+async def upload_videos_periodic():
+    while True:
+        await upload_videos(os.getenv("VIDEOS"), os.getenv("UPLOADED_VIDEOS"))
+        await asyncio.sleep(60 * 60)  # Upload videos every hour (3600 seconds)
+
+
 async def on_startup(bot):
     print("Bot started. Uploading videos...")
-    await upload_videos('videos', 'uploaded_videos')
+    await asyncio.create_task(upload_videos_periodic())  # Start the periodic task
 
 
 async def main():
@@ -70,7 +76,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except QuotaExceededError:
-        pass  # Quota exceeded error caught, program stops gracefully
+    asyncio.run(main())
