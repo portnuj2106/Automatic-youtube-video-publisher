@@ -9,6 +9,8 @@ import httplib2
 from datetime import datetime, timedelta
 import pytz
 
+from moviepy.editor import VideoFileClip
+
 
 def get_schedule_date_time(days=0):
     # Set the publish time to 2 PM Eastern Time (US) on the next day
@@ -47,16 +49,26 @@ def get_youtube_service():
     return service
 
 
-def upload_video(file_path, title, description='', tags=[], privacy_status = 'public',day=0):
+def is_youtube_short(video_file):
+    clip = VideoFileClip(video_file)
+    width, height = clip.size
+    aspect_ratio = width / height
+    return aspect_ratio < 1.0  # Assuming vertical aspect ratio for YouTube Shorts
+
+
+def upload_video(file_path, title, description='', tags=[], privacy_status='public', day=0):
     print("Uploading...")
     youtube = get_youtube_service()
     try:
+        is_shorts = is_youtube_short(file_path)
+
         # Define the video resource object
         body = {
             'snippet': {
                 'title': title,
                 'description': description,
                 'tags': tags,
+                'isShorts': is_shorts  # Indicates whether the video is a YouTube Short
             },
             'status': {
                 'privacyStatus': privacy_status
@@ -85,5 +97,12 @@ def upload_video(file_path, title, description='', tags=[], privacy_status = 'pu
     except HttpError as e:
         # print(f'An HTTP error {error.resp.status} occurred:\n{error.content}')
         raise Exception(f"An HTTP error {e.resp.status} occurred: {e.content.decode('utf-8')}")
+
+
+
+
+
+
+
 
 
