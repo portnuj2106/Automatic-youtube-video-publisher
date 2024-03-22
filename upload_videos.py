@@ -25,6 +25,7 @@ class QuotaExceededError(Exception):
 
 async def upload_videos(directory, uploaded_videos_directory):
     global quota_exceeded  # Access the global variable
+    retry_count = int(os.getenv('RETRY_COUNT'))  # Number of retry attempts
     for entry in os.listdir(directory):
         if quota_exceeded:  # Check if quota is exceeded before processing more files
             await send_message("Quota exceeded. Stopping upload.")
@@ -32,27 +33,45 @@ async def upload_videos(directory, uploaded_videos_directory):
         full_path = os.path.join(directory, entry)
         if os.path.isfile(full_path):
             print("File:", full_path)
-            try:
-                await upload_video(full_path, entry)
+            for _ in range(retry_count + 1):  # Retry the upload for the specified number of times
+                try:
+                    await upload_video(full_path, entry)
 
-                # If upload is successful, delete the file and move it
-                os.remove(full_path)
-                print("File removed successfully.")
-                move_path = os.path.join(uploaded_videos_directory, entry)
-                shutil.move(full_path, move_path)
-                print("File moved successfully to:", move_path)
+                    # If upload is successful, move the file
+                    move_path = os.path.join(uploaded_videos_directory, entry)
+                    shutil.move(full_path, move_path)
+                    print("File moved successfully to:", move_path)
 
-                # Send message to the bot that the video is uploaded
-                await send_message(f"Video '{entry}' uploaded successfully!")
+                    # Send message to the bot that the video is uploaded
+                    await send_message(f"Video '{entry}' uploaded successfully!")
 
-            except Exception as e:
-                if "quotaExceeded" in str(e) or "uploadLimitExceeded" in str(e):
-                    print("Quota exceeded. Skipping this file.")
-                    quota_exceeded = True  # Set quota_exceeded to True
-                else:
-                    print(f"Error occurred: {e}")
-                    # Send message to the bot about the error
-                    await send_message(f"Error occurred while uploading video '{entry}': {e}")
+                    try:
+                        # Now that upload is successful, remove the file
+                        os.remove(move_path)  # Use move_path instead of full_path
+                        print("File removed successfully.")
+                    except OSError as e:
+                        print(f"Error occurred while removing file: {e}")
+
+                    break  # Break the loop if upload is successful
+
+                except Exception as e:
+                    if "quotaExceeded" in str(e) or "uploadLimitExceeded" in str(e):
+                        print("Quota exceeded. Skipping this file.")
+                        quota_exceeded = True  # Set quota_exceeded to True
+                        break  # Break the loop if quota exceeded
+                    elif retry_count == 0:
+                        print(f"Error occurred: {e}. Maximum retry attempts reached.")
+                        # Send message to the bot about the error
+                        await send_message(f"Error occurred while uploading video '{entry}': {e}. "
+                                           f"Maximum retry attempts reached.")
+                        break  # Break the loop if maximum retry attempts reached
+                    else:
+                        print(f"Error occurred: {e}. Retrying...")
+                        # Send message to the bot about the error
+                        await send_message(f"Error occurred while uploading video '{entry}': {e}. Retrying...")
+
+                        # Wait for a short period before retrying
+                        await asyncio.sleep(5)  # Adjust the delay time as needed
 
         elif os.path.isdir(full_path):
             print("Directory:", full_path)
@@ -62,7 +81,7 @@ async def upload_videos(directory, uploaded_videos_directory):
 async def upload_videos_periodic():
     while True:
         await upload_videos(os.getenv("VIDEOS"), os.getenv("UPLOADED_VIDEOS"))
-        await asyncio.sleep(60 * 60)  # Upload videos every hour (3600 seconds)
+        await asyncio.sleep(float(os.getenv("UPLOAD_FREQUENCY")) * 60)  # Upload videos every hour (3600 seconds)
 
 
 async def on_startup(bot):
